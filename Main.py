@@ -35,7 +35,7 @@ class PayrollConciliator(ctk.CTk):
         self.criar_linha("3. De-Para CC:", "depara", 2)
         self.criar_linha("4. Eventos ADP:", "eventos", 3)
 
-        self.btn_run = ctk.CTkButton(self, text="EXECUTAR CONCILIAÇÃO", fg_color="#1f6aa5", height=40, command=self.run_logic)
+        self.btn_run = ctk.CTkButton(self, text="EXECUTAR CONCILIAÇÃO", fg_color="#1f6aa5", height=40, command=self.logica)
         self.btn_run.pack(pady=30)
 
         self.result_box = ctk.CTkTextbox(self, width=850, height=350, font=("Consolas", 12))
