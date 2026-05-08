@@ -10,7 +10,7 @@ class PayrollConciliator(ctk.CTk):
         super().__init__()
         self.title("Payroll Conciliator IA - Dynatech")
         self.geometry("900x750")
-        ctk.set_appearance_mode("dark")
+        ctk.set_appearance_mode("light")
 
         # Variáveis dos caminhos
         self.paths = {
@@ -65,10 +65,10 @@ class PayrollConciliator(ctk.CTk):
                 img = Image.open(caminho_logo)
                 
                 # Redimensionar a imagem (opcional - ajuste o tamanho conforme necessário)
-                img = img.resize((200, 100), Image.Resampling.LANCZOS)
+                img = img.resize((300, 100), Image.Resampling.LANCZOS)
                 
                 # Converter para CTkImage
-                logo = ctk.CTkImage(light_image=img, dark_image=img, size=(200, 100))
+                logo = ctk.CTkImage(light_image=img, dark_image=img, size=(300, 100))
                 
                 # Criar label com a imagem
                 logo_label = ctk.CTkLabel(self.logo_frame, image=logo, text="")
