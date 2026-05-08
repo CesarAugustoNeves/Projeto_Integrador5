@@ -1,5 +1,6 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+from PIL import Image  # Import necessário para carregar imagens
 import pandas as pd
 import os
 import csv
@@ -22,8 +23,16 @@ class PayrollConciliator(ctk.CTk):
         self.setup_ui()
 
     def setup_ui(self):
+        # Frame para o logo (topo)
+        self.logo_frame = ctk.CTkFrame(self, fg_color="transparent")
+        self.logo_frame.pack(pady=(20, 0))
+        
+        # Carregar e exibir a imagem (SEM usar self.log ainda)
+        self.carregar_logo_sem_log()
+        
+        # Título principal
         self.label_title = ctk.CTkLabel(self, text="Painel de Auditoria Dynatech", font=("Roboto", 24, "bold"))
-        self.label_title.pack(pady=20)
+        self.label_title.pack(pady=10)
 
         # Container de Botões
         self.frame_files = ctk.CTkFrame(self)
@@ -40,13 +49,59 @@ class PayrollConciliator(ctk.CTk):
 
         self.result_box = ctk.CTkTextbox(self, width=850, height=350, font=("Consolas", 12))
         self.result_box.pack(pady=10, padx=20)
+        
+        # Agora que o result_box existe, podemos mostrar logs
+        self.carregar_logo_com_log()
+
+    def carregar_logo_sem_log(self):
+        """Carrega o logo sem usar o log (chamado antes do result_box existir)"""
+        try:
+            # Caminho da imagem (ajuste conforme necessário)
+            caminho_logo = "logo_dynatech.png"  # Ou .jpg, .jpeg
+            
+            # Verificar se o arquivo existe
+            if os.path.exists(caminho_logo):
+                # Carregar imagem com PIL
+                img = Image.open(caminho_logo)
+                
+                # Redimensionar a imagem (opcional - ajuste o tamanho conforme necessário)
+                img = img.resize((200, 100), Image.Resampling.LANCZOS)
+                
+                # Converter para CTkImage
+                logo = ctk.CTkImage(light_image=img, dark_image=img, size=(200, 100))
+                
+                # Criar label com a imagem
+                logo_label = ctk.CTkLabel(self.logo_frame, image=logo, text="")
+                logo_label.pack(pady=10)
+            else:
+                # Fallback: mostrar texto alternativo
+                texto_logo = ctk.CTkLabel(self.logo_frame, text="DYNATECH", font=("Roboto", 20, "bold"))
+                texto_logo.pack(pady=10)
+                
+        except Exception as e:
+            # Fallback: mostrar texto
+            texto_logo = ctk.CTkLabel(self.logo_frame, text="DYNATECH", font=("Roboto", 20, "bold"))
+            texto_logo.pack(pady=10)
+    
+    def carregar_logo_com_log(self):
+        """Tenta carregar o logo novamente para mostrar mensagem de sucesso/erro no log"""
+        try:
+            caminho_logo = "logo_dynatech.png"
+            
+            if os.path.exists(caminho_logo):
+                self.log("Logo Dynatech carregado com sucesso!")
+            else:
+                self.log(f"AVISO: Arquivo '{caminho_logo}' não encontrado - usando texto alternativo")
+                
+        except Exception as e:
+            self.log(f"Erro ao carregar logo: {str(e)}")
 
     # Cria as linhas de seleção
     def criar_linha(self, label_text, key, row):
         lbl = ctk.CTkLabel(self.frame_files, text=label_text)
         lbl.grid(row=row, column=0, padx=10, pady=5, sticky="w")
         
-        btn = ctk.CTkButton(self.frame_files, text="Selecionar", width=100, command=lambda k=key: self.select_file(k))
+        btn = ctk.CTkButton(self.frame_files, text="Selecionar", width=100, command=lambda k=key: self.selecionar_arq(k))
         btn.grid(row=row, column=1, padx=10, pady=5)
 
     def selecionar_arq(self, key):
@@ -56,8 +111,11 @@ class PayrollConciliator(ctk.CTk):
             self.log(f"Arquivo {key.upper()} carregado com sucesso.")
 
     def log(self, message):
-        self.result_box.insert("end", f"> {message}\n")
-        self.result_box.see("end")
+        if hasattr(self, 'result_box'):  # Verifica se o result_box já existe
+            self.result_box.insert("end", f"> {message}\n")
+            self.result_box.see("end")
+        else:
+            print(f"> {message}")  # Fallback para o console
 
     def limpar_valor(self, val):
         if pd.isna(val): return 0.0
@@ -86,7 +144,7 @@ class PayrollConciliator(ctk.CTk):
             self.log("-> Lendo De-Para CC...")
             df_cc = pd.read_csv(self.paths["depara"], sep=';', encoding='latin1', engine='python', on_bad_lines='skip')
             
-            # Lendo Eventos )
+            # Lendo Eventos
             self.log("-> Lendo Eventos ADP...")
             df_ev = pd.read_csv(self.paths["eventos"], sep=';', encoding='latin1', engine='python', on_bad_lines='skip')
 
