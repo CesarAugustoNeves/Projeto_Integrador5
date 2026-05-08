@@ -65,7 +65,7 @@ class PayrollConciliator(ctk.CTk):
         try: return float(s)
         except: return 0.0
 
-    def run_logic(self):
+    def logica(self):
         # Verifica se todos os arquivos foram selecionados
         if not all(self.paths.values()):
             messagebox.showwarning("Atenção", "Selecione os 4 arquivos antes de continuar!")
