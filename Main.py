@@ -19,6 +19,9 @@ class PayrollConciliator(ctk.CTk):
             "depara": "",
             "eventos": ""
         }
+        
+        # Dicionário para armazenar as labels dos arquivos
+        self.file_labels = {}
 
         self.setup_ui()
 
@@ -97,12 +100,26 @@ class PayrollConciliator(ctk.CTk):
         
         btn = ctk.CTkButton(self.frame_files, text="Selecionar", width=100, command=lambda k=key: self.selecionar_arq(k))
         btn.grid(row=row, column=1, padx=10, pady=5)
+        
+        # Criar label para mostrar o nome do arquivo selecionado
+        file_label = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo selecionado", font=("Roboto", 10), text_color="gray")
+        file_label.grid(row=row, column=2, padx=10, pady=5, sticky="w")
+        
+        # Armazenar a referência da label
+        self.file_labels[key] = file_label
 
     def selecionar_arq(self, key):
         path = filedialog.askopenfilename(title=f"Selecionar {key.upper()}")
         if path:
             self.paths[key] = path
-            self.log(f"Arquivo {key.upper()} carregado com sucesso.")
+            # Extrair apenas o nome do arquivo do caminho completo
+            nome_arquivo = os.path.basename(path)
+            
+            # Atualizar a label com o nome do arquivo e cor verde
+            if key in self.file_labels:
+                self.file_labels[key].configure(text=f"✓ {nome_arquivo}", text_color="green", font=("Roboto", 10, "bold"))
+            
+            self.log(f"Arquivo {key.upper()} carregado com sucesso: {nome_arquivo}")
 
     def log(self, message):
         if hasattr(self, 'result_box'):  # Verifica se o result_box já existe
