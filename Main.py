@@ -87,12 +87,6 @@ class PayrollConciliator(ctk.CTk):
         """Tenta carregar o logo novamente para mostrar mensagem de sucesso/erro no log"""
         try:
             caminho_logo = "logo_dynatech.png"
-            
-            if os.path.exists(caminho_logo):
-                self.log("Logo Dynatech carregado com sucesso!")
-            else:
-                self.log(f"AVISO: Arquivo '{caminho_logo}' não encontrado - usando texto alternativo")
-                
         except Exception as e:
             self.log(f"Erro ao carregar logo: {str(e)}")
 
