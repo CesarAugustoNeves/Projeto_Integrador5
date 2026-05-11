@@ -102,7 +102,7 @@ class PayrollConciliator(ctk.CTk):
         btn.grid(row=row, column=1, padx=10, pady=5)
         
         # Criar label para mostrar o nome do arquivo selecionado
-        file_label = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo selecionado", font=("Roboto", 10), text_color="gray")
+        file_label = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo selecionado", font=("Roboto", 10), text_color="black")
         file_label.grid(row=row, column=2, padx=10, pady=5, sticky="w")
         
         # Armazenar a referência da label
