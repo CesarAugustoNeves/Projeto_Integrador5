@@ -29,11 +29,11 @@ print("Teste:", len(x_teste))
 # treinamento
 algoritmo = RandomForestClassifier()
 
+#pegar as metricas da matriz de confusão no treinamento
 algoritmo.fit(x_treinamento, y_treinamento)
 
 # previsão
 previsoes = algoritmo.predict(x_teste)
-
 
 # avaliar IA com a matris de confusão 
 matriz = confusion_matrix(y_teste, previsoes)

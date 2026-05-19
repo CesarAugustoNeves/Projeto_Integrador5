@@ -190,7 +190,7 @@ def processamento(
 
         diff = abs(row['diferenca'])
 
-        if diff < 0.01:
+        '''if diff < 0.01:
             return 1
 
         adp_dif = row['adp_valor'] > 0
@@ -208,7 +208,7 @@ def processamento(
             return 3
 
         if adp_dif and sap_dif:
-            return 4
+            return 4'''
 
     comparacao['diagnostico'] = comparacao.apply(
         diagnostico,

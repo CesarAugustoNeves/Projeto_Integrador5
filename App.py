@@ -5,9 +5,10 @@ import pandas as pd
 import os
 import csv
 import shutil
+import pickle
 
 from utils.processamento_de_dados import processamento
-
+from ia.prever import prever_excel
 
 class PayrollConciliator(ctk.CTk):
     def __init__(self):
@@ -188,7 +189,9 @@ class PayrollConciliator(ctk.CTk):
             self.log("Iniciando o cruzamento de dados...")
             
             processamento()
-                         
+
+            prever_excel('dados/user/IA.xlsx')
+
             self.log("Análise concluída com sucesso.")
 
         except Exception as e:
