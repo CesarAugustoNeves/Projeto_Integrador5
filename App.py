@@ -140,6 +140,22 @@ class PayrollConciliator(ctk.CTk):
 
                 shutil.copy(path, destino)
 
+            if key == "depara":
+                destino_pasta = "dados/user"
+                os.makedirs(destino_pasta, exist_ok=True)
+
+                destino = os.path.join(destino_pasta, "DEPARA.xlsx")
+
+                shutil.copy(path, destino)
+
+            if key == "eventos":
+                destino_pasta = "dados/user"
+                os.makedirs(destino_pasta, exist_ok=True)
+
+                destino = os.path.join(destino_pasta, "EVENTOS.xlsx")
+
+                shutil.copy(path, destino)
+
             # agora você troca o caminho para o interno do projeto
             self.paths[key] = destino
 
