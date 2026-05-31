@@ -206,7 +206,7 @@ class PayrollConciliator(ctk.CTk):
             
             processamento()
 
-            prever_excel('dados/user/IA.xlsx')
+            '''prever_excel('dados/user/IA.xlsx')'''
 
             self.log("Análise concluída com sucesso.")
 

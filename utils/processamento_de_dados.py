@@ -26,9 +26,7 @@ def processamento(
     sap.columns = sap.columns.str.strip()
 
     adp['conta_credito'] = (
-        adp[
-            'Cta Credito/40'
-        ]
+        adp['Cta Credito/40']
         .astype(str)
         .str.strip()
     )
@@ -85,135 +83,119 @@ def processamento(
         .astype(float)
     )
 
+    # --- SAP: separar crédito (40) e débito (50) ---
+
     sap_credito = sap[
         (sap['chave'] == 40)
-        &
-        (sap['Centro custo'].notna())
+        & (sap['Centro custo'].notna())
     ].copy()
 
     sap_debito = sap[
         (sap['chave'] == 50)
-        &
-        (sap['Centro custo'].notna())
+        & (sap['Centro custo'].notna())
     ].copy()
+
+    # --- ADP: agregar crédito e débito separadamente ---
 
     adp_credito = (
         adp
-        .groupby(
-            ['conta_credito', 'ccusto_credito'],
-            as_index=False
-        )['valor']
+        .groupby(['conta_credito', 'ccusto_credito'], as_index=False)['valor']
         .sum()
-        .rename(columns={'valor': 'adp_valor'})
+        .rename(columns={
+            'conta_credito': 'conta',
+            'ccusto_credito': 'ccusto',
+            'valor': 'adp_credito'
+        })
     )
-
-    sap_credito_agr = (
-        sap_credito
-        .groupby(
-            ['conta', 'ccusto'],
-            as_index=False
-        )['valor']
-        .sum()
-        .rename(columns={'valor': 'sap_valor'})
-    )
-
-    sap_credito_agr['sap_valor_abs'] = (
-        sap_credito_agr['sap_valor']
-        .abs()
-    )
-
-    comparacao_credito = adp_credito.merge(
-        sap_credito_agr,
-        left_on=['conta_credito', 'ccusto_credito'],
-        right_on=['conta', 'ccusto'],
-        how='outer'
-    ).fillna(0)
-
-    comparacao_credito['diferenca'] = (
-        comparacao_credito['adp_valor']
-        - comparacao_credito['sap_valor_abs']
-    ).round(2)
 
     adp_debito = (
         adp
-        .groupby(
-            ['conta_debito', 'ccusto_debito'],
-            as_index=False
-        )['valor']
+        .groupby(['conta_debito', 'ccusto_debito'], as_index=False)['valor']
         .sum()
-        .rename(columns={'valor': 'adp_valor'})
+        .rename(columns={
+            'conta_debito': 'conta',
+            'ccusto_debito': 'ccusto',
+            'valor': 'adp_debito'
+        })
     )
+
+    # --- SAP: agregar crédito e débito separadamente ---
+
+    sap_credito_agr = (
+        sap_credito
+        .groupby(['conta', 'ccusto'], as_index=False)['valor']
+        .sum()
+        .rename(columns={'valor': 'sap_credito'})
+    )
+    sap_credito_agr['sap_credito'] = sap_credito_agr['sap_credito'].abs()
 
     sap_debito_agr = (
         sap_debito
-        .groupby(
-            ['conta', 'ccusto'],
-            as_index=False
-        )['valor']
+        .groupby(['conta', 'ccusto'], as_index=False)['valor']
         .sum()
-        .rename(columns={'valor': 'sap_valor'})
+        .rename(columns={'valor': 'sap_debito'})
+    )
+    sap_debito_agr['sap_debito'] = sap_debito_agr['sap_debito'].abs()
+
+    # --- Unir todas as combinações de conta + ccusto ---
+
+    all_keys = pd.concat([
+        adp_credito[['conta', 'ccusto']],
+        adp_debito[['conta', 'ccusto']],
+        sap_credito_agr[['conta', 'ccusto']],
+        sap_debito_agr[['conta', 'ccusto']],
+    ]).drop_duplicates()
+
+    comparacao = (
+        all_keys
+        .merge(adp_debito,      on=['conta', 'ccusto'], how='left')
+        .merge(adp_credito,     on=['conta', 'ccusto'], how='left')
+        .merge(sap_debito_agr,  on=['conta', 'ccusto'], how='left')
+        .merge(sap_credito_agr, on=['conta', 'ccusto'], how='left')
+        .fillna(0)
     )
 
-    sap_debito_agr['sap_valor_abs'] = (
-        sap_debito_agr['sap_valor']
-        .abs()
-    )
+    # --- Saldos ---
 
-    comparacao_debito = adp_debito.merge(
-        sap_debito_agr,
-        left_on=['conta_debito', 'ccusto_debito'],
-        right_on=['conta', 'ccusto'],
-        how='outer'
-    ).fillna(0)
-
-    comparacao_debito['diferenca'] = (
-        comparacao_debito['adp_valor']
-        - comparacao_debito['sap_valor_abs']
+    comparacao['adp_saldo'] = (
+        comparacao['adp_debito'] - comparacao['adp_credito']
     ).round(2)
 
-    comparacao_credito = comparacao_credito.rename(columns={
-        'conta_credito': 'conta_adp',
-        'ccusto_credito': 'ccusto_adp'
-    })
+    comparacao['sap_saldo'] = (
+        comparacao['sap_debito'] - comparacao['sap_credito']
+    ).round(2)
 
-    comparacao_debito = comparacao_debito.rename(columns={
-        'conta_debito': 'conta_adp',
-        'ccusto_debito': 'ccusto_adp'
-    })
+    comparacao['diferenca'] = (
+        comparacao['adp_saldo'] - comparacao['sap_saldo']
+    ).round(2)
 
-    comparacao = pd.concat([
-        comparacao_credito,
-        comparacao_debito
-    ], ignore_index=True)
+    # --- Diagnóstico ---
 
     def diagnostico(row):
-
         diff = abs(row['diferenca'])
 
         '''if diff < 0.01:
-            return 1
+            return 1  # OK
 
-        adp_dif = row['adp_valor'] > 0
-        sap_dif = row['sap_valor_abs'] > 0
+        adp_tem = row['adp_saldo'] != 0
+        sap_tem = row['sap_saldo'] != 0
 
         # 1 = OK
         # 2 = Diferença somente no ADP
         # 3 = Diferença somente no SAP
         # 4 = Diferença em ambos
 
-        if adp_dif and not sap_dif:
+        if adp_tem and not sap_tem:
             return 2
 
-        if sap_dif and not adp_dif:
+        if sap_tem and not adp_tem:
             return 3
 
-        if adp_dif and sap_dif:
-            return 4'''
+        return 4
 
-    comparacao['diagnostico'] = comparacao.apply(
-        diagnostico,
-        axis=1
-    )
+    comparacao['diagnostico'] = comparacao.apply(diagnostico, axis=1)
+
+    comparacao = comparacao.sort_values(['conta', 'ccusto']).reset_index(drop=True)'''
 
     print(comparacao)
 
