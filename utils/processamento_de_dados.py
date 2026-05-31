@@ -3,7 +3,7 @@ import numpy as np
 
 def processamento(arquivo_adp, arquivo_sap, arquivo_saida):
 
-    # --- O SCANNER COMPLETO ---
+    # SCANNER COMPLETO 
     def buscar_aba_e_linha(caminho, coluna_alvo):
         xls = pd.ExcelFile(caminho) 
         
@@ -33,15 +33,15 @@ def processamento(arquivo_adp, arquivo_sap, arquivo_saida):
     aba_certa_sap, header_certo_sap = buscar_aba_e_linha(arquivo_sap, coluna_alvo='Conta')
     sap = pd.read_excel(arquivo_sap, sheet_name=aba_certa_sap, header=header_certo_sap)
 
-    # --- BLINDAGEM DE CABEÇALHOS GERAIS ---
+    # FILTRO DE CABEÇALHOS GERAIS 
     adp.columns = adp.columns.astype(str).str.strip().str.replace('é', 'e', regex=False).str.replace('É', 'E', regex=False).str.replace('  ', ' ', regex=False)
     sap.columns = sap.columns.astype(str).str.strip().str.replace('é', 'e', regex=False).str.replace('É', 'E', regex=False).str.replace('  ', ' ', regex=False)
 
     
 
-    # --- A CORREÇÃO CRÍTICA DO MAPEAMENTO ADP ---
+    # MAPEAMENTO ADP 
     adp['conta_credito'] = (
-        adp['Cta Credito/40']  # O nome real e bizarro descoberto!
+        adp['Cta Credito/40']  
         .astype(str)
         .str.strip()
     )

@@ -20,7 +20,7 @@ class PayrollConciliator(ctk.CTk):
         self.geometry("900x750")
         ctk.set_appearance_mode("light")
 
-        # Variáveis dos caminhos (agora vão guardar os caminhos reais absolutos)
+        # Variáveis dos caminhos
         self.paths = {
             "adp": "",
             "sap": "",
