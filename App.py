@@ -5,6 +5,8 @@ import pandas as pd
 import os
 import shutil
 
+#.\.venv\Scripts\activate
+
 from utils.processamento_de_dados import processamento
 from ia.prever import prever_excel
 from utils.output_excel import output_excel

@@ -1,13 +1,23 @@
 import pandas as pd
 import numpy as np
+import sys
 from pathlib import Path
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+# ─── 1. ONDE O SISTEMA ESTÁ RODANDO? ───
+if getattr(sys, 'frozen', False):
+    # Rodando como .exe: Lê os arquivos da mesma pasta onde o executável está salvo
+    pasta_trabalho = Path.cwd()
+else:
+    # Rodando no VS Code
+    pasta_trabalho = Path(__file__).resolve().parent.parent
 
-arquivo_adp = BASE_DIR / "dados" / "user" / "ADP.xlsx"
-arquivo_sap = BASE_DIR / "dados" / "user" / "SAP.xlsx"
-arquivo_saida = BASE_DIR / "dados" / "user" / "IA.xlsx"
+# ─── 2. CAMINHOS DOS ARQUIVOS DO USUÁRIO ───
+# O sistema vai procurar a pasta "dados" ao lado de onde ele está rodando
+arquivo_adp = pasta_trabalho / "dados" / "user" / "ADP.xlsx"
+arquivo_sap = pasta_trabalho / "dados" / "user" / "SAP.xlsx"
 
+# O rascunho da IA será salvo solto, na mesma pasta do .exe
+arquivo_saida = pasta_trabalho / "IA.xlsx"
 
 def processamento(
     arquivo_adp=arquivo_adp,
@@ -100,7 +110,6 @@ def processamento(
     )
 
     # SAP: separar crédito (40) e débito (50)
-
     sap_credito = sap[
         (sap['chave'] == 40)
         & (sap['Centro custo'].notna())
@@ -112,7 +121,6 @@ def processamento(
     ].copy()
 
     # Agrupar históricos ADP
-
     adp_hist = (
         adp.groupby(
             ['conta_credito', 'ccusto_credito']
@@ -126,7 +134,6 @@ def processamento(
     )
 
     # Agrupar textos SAP
-
     sap_texto = (
         sap_credito.groupby(
             ['conta', 'ccusto']
@@ -136,7 +143,6 @@ def processamento(
     )
 
     # ADP: agregar crédito
-
     adp_credito = (
         adp
         .groupby(
@@ -152,7 +158,6 @@ def processamento(
     )
 
     # ADP: agregar débito
-
     adp_debito = (
         adp
         .groupby(
@@ -168,7 +173,6 @@ def processamento(
     )
 
     # SAP: agregar crédito
-
     sap_credito_agr = (
         sap_credito
         .groupby(
@@ -186,7 +190,6 @@ def processamento(
     )
 
     # SAP: agregar débito
-
     sap_debito_agr = (
         sap_debito
         .groupby(
@@ -204,7 +207,6 @@ def processamento(
     )
 
     # Todas as chaves
-
     all_keys = pd.concat([
         adp_credito[['conta', 'ccusto']],
         adp_debito[['conta', 'ccusto']],
@@ -213,7 +215,6 @@ def processamento(
     ]).drop_duplicates()
 
     # Comparação
-
     comparacao = (
         all_keys
         .merge(adp_debito,      on=['conta', 'ccusto'], how='left')
@@ -225,7 +226,6 @@ def processamento(
     )
 
     # Numéricos
-
     colunas_numericas = [
         'adp_debito',
         'adp_credito',
@@ -239,12 +239,10 @@ def processamento(
     )
 
     # Textos
-
     comparacao['hist_lanc_4'] = comparacao['hist_lanc_4'].fillna('')
     comparacao['texto_4'] = comparacao['texto_4'].fillna('')
 
     # Saldos
-
     comparacao['adp_saldo'] = (
         comparacao['adp_debito']
         - comparacao['adp_credito']
@@ -267,6 +265,27 @@ def processamento(
     )
 
     # Agrupamentos
+    # ── FUNÇÃO DE DIAGNÓSTICO RESTAURADA ──────────────────────────────────────
+    def diagnostico(row):
+        diff = abs(row.get('diferenca', 0))
+        if diff < 0.01:
+            return 1
+
+        adp_dif = abs(row.get('adp_debito', 0)) > 0 or abs(row.get('adp_credito', 0)) > 0
+        sap_dif = abs(row.get('sap_debito', 0)) > 0 or abs(row.get('sap_credito', 0)) > 0
+
+        if adp_dif and not sap_dif:
+            return 2
+        if sap_dif and not adp_dif:
+            return 3
+        if adp_dif and sap_dif:
+            return 4
+        return 1
+
+    comparacao['diagnostico'] = comparacao.apply(diagnostico, axis=1)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    # ── Agrupamentos ──────────────────────────────────────────────────────────
 
     colunas_soma = [
         'adp_debito', 'adp_credito',
@@ -294,6 +313,45 @@ def processamento(
         .reset_index(drop=True)
     )
 
+    # ── AGRUPAMENTO POR EVENTOS ───────────────────────────────────────────────
+    
+    # 1. Extrair os códigos de evento (4 primeiros caracteres)
+    adp['evento'] = adp['Hist Lanc'].astype(str).str.strip().str[:4]
+    
+    sap_credito['evento'] = sap_credito['Texto'].astype(str).str.strip().str[:4]
+    sap_debito['evento'] = sap_debito['Texto'].astype(str).str.strip().str[:4]
+
+    # 2. Somar Créditos e Débitos separados por evento
+    adp_credito_evt = adp.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'adp_credito'})
+    sap_credito_evt = sap_credito.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'sap_credito'})
+    
+    adp_debito_evt = adp.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'adp_debito'})
+    sap_debito_evt = sap_debito.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'sap_debito'})
+
+    # 3. Consolidar todos os códigos de eventos existentes
+    eventos_unicos = pd.concat([
+        adp_credito_evt[['evento']], adp_debito_evt[['evento']],
+        sap_credito_evt[['evento']], sap_debito_evt[['evento']]
+    ]).drop_duplicates()
+
+    # 4. Mesclar as somas numa única tabela
+    por_evento = (
+        eventos_unicos
+        .merge(adp_debito_evt, on='evento', how='left')
+        .merge(adp_credito_evt, on='evento', how='left')
+        .merge(sap_debito_evt, on='evento', how='left')
+        .merge(sap_credito_evt, on='evento', how='left')
+        .fillna(0)
+    )
+
+    # 5. Calcular os saldos finais e a diferença
+    por_evento['adp_saldo'] = (por_evento['adp_debito'] - por_evento['adp_credito']).round(2)
+    por_evento['sap_saldo'] = (por_evento['sap_debito'] - por_evento['sap_credito']).round(2)
+    por_evento['diferenca'] = (por_evento['adp_saldo'] - por_evento['sap_saldo']).round(2)
+    
+    # 6. Aplicar a mesma função de diagnóstico do resto
+    por_evento['Previsão do Modelo'] = por_evento.apply(diagnostico, axis=1)
+
     # Por texto (hist_lanc_4 do ADP — 4 primeiros caracteres do histórico)
     # Linhas sem texto ficam agrupadas como '' (em branco)
     por_texto = (
@@ -312,7 +370,7 @@ def processamento(
         comparacao.to_excel(writer, sheet_name='Comparacao', index=False)
         por_conta.to_excel(writer, sheet_name='Por_Conta', index=False)
         por_ccusto.to_excel(writer, sheet_name='Por_CCusto', index=False)
-        por_texto.to_excel(writer, sheet_name='Por_Texto', index=False)
+        por_evento.to_excel(writer, sheet_name='Por_Evento', index=False)
 
     print(f'Arquivo salvo em: {arquivo_saida}')
     print(f'  Abas: Comparacao ({len(comparacao)} linhas) | '
