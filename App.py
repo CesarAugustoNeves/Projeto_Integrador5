@@ -1,224 +1,282 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
-from PIL import Image  # Import necessário para carregar imagens
+from PIL import Image
 import pandas as pd
 import os
-import csv
 import shutil
-import pickle
 
 from utils.processamento_de_dados import processamento
 from ia.prever import prever_excel
+from utils.output_excel import output_excel
+
+# Arquivos que já existem 
+ARQUIVOS_FIXOS = {"depara", "plano"}
+
+_DESTINOS = {
+    "adp":    "ADP.xlsx",
+    "sap":    "SAP.xlsx",
+    "depara": "DEPARA.xlsx",
+    "plano":  "PLANO_CONTAS.xlsx",
+}
+
+class FileCard(ctk.CTkFrame):
+    """Card que exibe o status de um arquivo com ações contextuais."""
+
+    def __init__(self, master, label_text, key, on_select, on_remove, fixo=False, **kwargs):
+        super().__init__(master, fg_color="#f0f4f8", corner_radius=8, **kwargs)
+
+        self.key = key
+        self.on_select = on_select
+        self.on_remove = on_remove
+        self.fixo = fixo
+
+        self.lbl_title = ctk.CTkLabel(
+            self, text=label_text,
+            font=("Roboto", 12, "bold"), width=160, anchor="w"
+        )
+        self.lbl_title.grid(row=0, column=0, padx=(12, 6), pady=8, sticky="w")
+
+        # Arquivos fixos: botão "Substituir" (troca o arquivo)
+        if fixo:
+            self.btn_select = ctk.CTkButton(
+                self, text="⇄ Substituir", width=110, height=30,
+                fg_color="#546e7a", hover_color="#37474f",
+                command=lambda: self.on_select(self.key)
+            )
+        else:
+            self.btn_select = ctk.CTkButton(
+                self, text="Selecionar", width=110, height=30,
+                fg_color="#1f6aa5", hover_color="#174f7a",
+                command=lambda: self.on_select(self.key)
+            )
+        self.btn_select.grid(row=0, column=1, padx=6, pady=8)
+
+        # Nome / status do arquivo
+        self.lbl_file = ctk.CTkLabel(
+            self, text="Nenhum arquivo selecionado",
+            font=("Roboto", 10), text_color="#888888",
+            anchor="w", wraplength=300
+        )
+        self.lbl_file.grid(row=0, column=2, padx=6, pady=8, sticky="w")
+
+        # Botão remover para arquivos adp e sap
+        self.btn_remove = ctk.CTkButton(
+            self, text="✕ Remover", width=90, height=28,
+            fg_color="#e53935", hover_color="#b71c1c",
+            command=lambda: self.on_remove(self.key)
+        )
+        self.btn_remove.grid(row=0, column=3, padx=(6, 12), pady=8)
+        self.btn_remove.grid_remove()
+
+        self.columnconfigure(2, weight=1)
+
+
+
+    def set_arquivo(self, nome_arquivo: str, fixo_automatico: bool = False):
+        """Marca o card como carregado."""
+        if fixo_automatico:
+            self.lbl_file.configure(
+                text=f"📁  {nome_arquivo}  (pré-carregado)",
+                text_color="#1565c0",
+                font=("Roboto", 10, "bold")
+            )
+            # Arquivos fixos não têm botão remover — só substituir
+        else:
+            self.lbl_file.configure(
+                text=f"✓  {nome_arquivo}",
+                text_color="#2e7d32",
+                font=("Roboto", 10, "bold")
+            )
+            if not self.fixo:
+                self.btn_remove.grid()
+
+    def limpar(self):
+        """Reseta o card para o estado vazio."""
+        self.lbl_file.configure(
+            text="Nenhum arquivo selecionado",
+            text_color="#888888",
+            font=("Roboto", 10)
+        )
+        self.btn_remove.grid_remove()
+
 
 class PayrollConciliator(ctk.CTk):
+
     def __init__(self):
         super().__init__()
         self.title("Payroll Conciliator IA - Dynatech")
-        self.geometry("900x750")
+        self.geometry("960x780")
         ctk.set_appearance_mode("light")
 
-        # Variáveis dos caminhos
-        self.paths = {
-            "adp": "",
-            "sap": "",
-            "depara": "",
-            "eventos": ""
-        }
-        
-        # Dicionário para armazenar as labels dos arquivos
-        self.file_labels = {}
+        self.paths: dict[str, str] = {k: "" for k in _DESTINOS}
+        self.file_cards: dict[str, FileCard] = {}
 
         self.setup_ui()
+        self._detectar_arquivos_fixos()
+
 
     def setup_ui(self):
-        # Frame para o logo (topo)
+        # Logo
         self.logo_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.logo_frame.pack(pady=(20, 0))
-        
-        # Carregar e exibir a imagem (SEM usar self.log ainda)
-        self.carregar_logo_sem_log()
-        
-        # Título principal
-        self.label_title = ctk.CTkLabel(self, text="Painel de Auditoria Dynatech", font=("Roboto", 24, "bold"))
-        self.label_title.pack(pady=10)
+        self._carregar_logo()
 
-        # Container de Botões
-        self.frame_files = ctk.CTkFrame(self)
-        self.frame_files.pack(pady=10, padx=20, fill="x")
+        # Título
+        ctk.CTkLabel(
+            self,
+            text="Painel de Auditoria Dynatech",
+            font=("Roboto", 24, "bold")
+        ).pack(pady=(8, 4))
 
-        # Config das linhas de seleção
-        self.criar_linha("1. Matriz ADP:", "adp", 0)
-        self.criar_linha("2. Matriz SAP:", "sap", 1)
-        self.criar_linha("3. De-Para CC:", "depara", 2)
-        self.criar_linha("4. Eventos ADP:", "eventos", 3)
 
-        self.btn_run = ctk.CTkButton(self, text="EXECUTAR CONCILIAÇÃO", fg_color="#1f6aa5", height=40, command=self.logica)
-        self.btn_run.pack(pady=30)
+        # Cards
+        self.frame_files = ctk.CTkFrame(self, fg_color="transparent")
+        self.frame_files.pack(pady=6, padx=24, fill="x")
 
-        self.result_box = ctk.CTkTextbox(self, width=850, height=350, font=("Consolas", 12))
-        self.result_box.pack(pady=10, padx=20)
-        
-        # Agora que o result_box existe, podemos mostrar logs
-        self.carregar_logo_com_log()
+        linhas = [
+            ("1. Matriz ADP:",      "adp",    False),
+            ("2. Matriz SAP:",      "sap",    False),
+            ("3. De-Para CC:",      "depara", True),
+            ("4. Plano de Contas:", "plano",  True),
+        ]
+        for label, key, fixo in linhas:
+            card = FileCard(
+                self.frame_files,
+                label_text=label,
+                key=key,
+                on_select=self.selecionar_arq,
+                on_remove=self.remover_arq,
+                fixo=fixo
+            )
+            card.pack(fill="x", pady=4)
+            self.file_cards[key] = card
 
-    def carregar_logo_sem_log(self):
-        """Carrega o logo sem usar o log (chamado antes do result_box existir)"""
-        try:
-            # Caminho da imagem (ajuste conforme necessário)
-            caminho_logo = "logo_dynatech.png"  # Ou .jpg, .jpeg
-            
-            # Verificar se o arquivo existe
-            if os.path.exists(caminho_logo):
-                # Carregar imagem com PIL
-                img = Image.open(caminho_logo)
-                
-                # Redimensionar a imagem (opcional - ajuste o tamanho conforme necessário)
-                img = img.resize((300, 100), Image.Resampling.LANCZOS)
-                
-                # Converter para CTkImage
-                logo = ctk.CTkImage(light_image=img, dark_image=img, size=(300, 100))
-                
-                # Criar label com a imagem
-                logo_label = ctk.CTkLabel(self.logo_frame, image=logo, text="")
-                logo_label.pack(pady=10)
-            else:
-                # Fallback: mostrar texto alternativo
-                texto_logo = ctk.CTkLabel(self.logo_frame, text="DYNATECH", font=("Roboto", 20, "bold"))
-                texto_logo.pack(pady=10)
-                
-        except Exception as e:
-            # Fallback: mostrar texto
-            texto_logo = ctk.CTkLabel(self.logo_frame, text="DYNATECH", font=("Roboto", 20, "bold"))
-            texto_logo.pack(pady=10)
-    
-    def carregar_logo_com_log(self):
-        """Tenta carregar o logo novamente para mostrar mensagem de sucesso/erro no log"""
+        # Botão executar
+        self.btn_run = ctk.CTkButton(
+            self, text="▶  EXECUTAR CONCILIAÇÃO",
+            fg_color="#1f6aa5", hover_color="#174f7a",
+            height=44, font=("Roboto", 14, "bold"),
+            command=self.logica
+        )
+        self.btn_run.pack(pady=20)
+
+        # Log
+        self.result_box = ctk.CTkTextbox(self, width=900, height=300, font=("Consolas", 11))
+        self.result_box.pack(pady=8, padx=20)
+
+    def _carregar_logo(self):
         try:
             caminho_logo = "logo_dynatech.png"
-        except Exception as e:
-            self.log(f"Erro ao carregar logo: {str(e)}")
+            if os.path.exists(caminho_logo):
+                img = Image.open(caminho_logo).resize((300, 100), Image.Resampling.LANCZOS)
+                logo = ctk.CTkImage(light_image=img, dark_image=img, size=(300, 100))
+                ctk.CTkLabel(self.logo_frame, image=logo, text="").pack(pady=6)
+            else:
+                ctk.CTkLabel(self.logo_frame, text="DYNATECH", font=("Roboto", 20, "bold")).pack(pady=6)
+        except Exception:
+            ctk.CTkLabel(self.logo_frame, text="DYNATECH", font=("Roboto", 20, "bold")).pack(pady=6)
 
-    # Cria as linhas de seleção
-    def criar_linha(self, label_text, key, row):
-        lbl = ctk.CTkLabel(self.frame_files, text=label_text)
-        lbl.grid(row=row, column=0, padx=10, pady=5, sticky="w")
-        
-        btn = ctk.CTkButton(self.frame_files, text="Selecionar", width=100, command=lambda k=key: self.selecionar_arq(k))
-        btn.grid(row=row, column=1, padx=10, pady=5)
-        
-        # Criar label para mostrar o nome do arquivo selecionado
-        file_label = ctk.CTkLabel(self.frame_files, text="Nenhum arquivo selecionado", font=("Roboto", 10), text_color="black")
-        file_label.grid(row=row, column=2, padx=10, pady=5, sticky="w")
-        
-        # Armazenar a referência da label
-        self.file_labels[key] = file_label
 
-    def selecionar_arq(self, key):
+    def _detectar_arquivos_fixos(self):
+        """Verifica se DEPARA e PLANO_CONTAS já existem em dados/user e atualiza os cards."""
+        for key in ARQUIVOS_FIXOS:
+            caminho = os.path.join("dados/user", _DESTINOS[key])
+            if os.path.exists(caminho):
+                self.paths[key] = caminho
+                self.file_cards[key].set_arquivo(_DESTINOS[key], fixo_automatico=True)
+                self.log(f"Arquivo {key.upper()} detectado automaticamente: {_DESTINOS[key]}")
+            else:
+                self.log(f"⚠ Arquivo {_DESTINOS[key]} não encontrado em dados/user. Use '⇄ Substituir' para carregar.")
+
+
+    def selecionar_arq(self, key: str):
         path = filedialog.askopenfilename(title=f"Selecionar {key.upper()}")
-        if path:
-            self.paths[key] = path
-            # Extrair apenas o nome do arquivo do caminho completo
-            nome_arquivo = os.path.basename(path)
-            
-            # Atualizar a label com o nome do arquivo e cor verde
-            if key in self.file_labels:
-                self.file_labels[key].configure(text=f"✓ {nome_arquivo}", text_color="green", font=("Roboto", 10, "bold"))
-            
-            if key == "adp":
-                destino_pasta = "dados/user"
-                os.makedirs(destino_pasta, exist_ok=True)
+        if not path:
+            return
 
-                destino = os.path.join(destino_pasta, "ADP.xlsx")
+        destino_pasta = "dados/user"
+        os.makedirs(destino_pasta, exist_ok=True)
+        destino = os.path.join(destino_pasta, _DESTINOS[key])
+        shutil.copy(path, destino)
 
-                shutil.copy(path, destino)
-            
-            if key == "sap":
-                destino_pasta = "dados/user"
-                os.makedirs(destino_pasta, exist_ok=True)
+        self.paths[key] = destino
+        nome_arquivo = os.path.basename(path)
 
-                destino = os.path.join(destino_pasta, "SAP.xlsx")
+        self.file_cards[key].set_arquivo(nome_arquivo, fixo_automatico=False)
+        self.log(f"Arquivo {key.upper()} {'substituído' if key in ARQUIVOS_FIXOS else 'carregado'}: {nome_arquivo}")
 
-                shutil.copy(path, destino)
+    def remover_arq(self, key: str):
+        """Remove arquivo da UI e do disco (apenas para ADP e SAP)."""
+        destino = self.paths.get(key, "")
+        if destino and os.path.exists(destino):
+            try:
+                os.remove(destino)
+            except Exception as e:
+                self.log(f"Aviso: não foi possível remover o arquivo do disco: {e}")
 
-            if key == "depara":
-                destino_pasta = "dados/user"
-                os.makedirs(destino_pasta, exist_ok=True)
+        self.paths[key] = ""
+        self.file_cards[key].limpar()
+        self.log(f"Arquivo {key.upper()} removido.")
 
-                destino = os.path.join(destino_pasta, "DEPARA.xlsx")
 
-                shutil.copy(path, destino)
-
-            if key == "eventos":
-                destino_pasta = "dados/user"
-                os.makedirs(destino_pasta, exist_ok=True)
-
-                destino = os.path.join(destino_pasta, "EVENTOS.xlsx")
-
-                shutil.copy(path, destino)
-
-            # agora você troca o caminho para o interno do projeto
-            self.paths[key] = destino
-
-            self.log(f"Arquivo {key.upper()} carregado com sucesso: {nome_arquivo}")
-
-    def log(self, message):
-        if hasattr(self, 'result_box'):  # Verifica se o result_box já existe
+    def log(self, message: str):
+        if hasattr(self, "result_box"):
             self.result_box.insert("end", f"> {message}\n")
             self.result_box.see("end")
         else:
-            print(f"> {message}")  # Fallback para o console
+            print(f"> {message}")
 
     def limpar_valor(self, val):
-        if pd.isna(val): return 0.0
-        s = str(val).replace('R$', '').replace('.', '').replace(',', '.').strip()
-        try: return float(s)
-        except: return 0.0
+        if pd.isna(val):
+            return 0.0
+        s = str(val).replace("R$", "").replace(".", "").replace(",", ".").strip()
+        try:
+            return float(s)
+        except Exception:
+            return 0.0
+
 
     def logica(self):
-        # Verifica se todos os arquivos foram selecionados
-        """if not all(self.paths.values()):
-            messagebox.showwarning("Atenção", "Selecione os 4 arquivos antes de continuar!")
-            return
-        """
+        self.btn_run.configure(
+            text="⏳ Processando...",
+            fg_color="#f9a825",
+            hover_color="#f57f17"
+        )
+
+        self.update()  # força UI atualizar
+
         try:
             self.log("Iniciando leitura segura dos arquivos...")
-            
-            '''# Lendo ADP
-            self.log("-> Lendo MATRIZ ADP...")
-            df_adp = pd.read_csv(self.paths["adp"], sep=';', encoding='latin1', engine='python', on_bad_lines='skip')
-   
-            
-            # Lendo SAP
-            self.log("-> Lendo MATRIZ SAP...")
-            df_sap = pd.read_csv(self.paths["sap"], sep=';', encoding='latin1', skiprows=5, engine='python', on_bad_lines='skip')
-            
-            # Lendo De-Para CC
-            self.log("-> Lendo De-Para CC...")
-            df_cc = pd.read_csv(self.paths["depara"], sep=';', encoding='latin1', engine='python', on_bad_lines='skip')
-            
-            # Lendo Eventos
-            self.log("-> Lendo Eventos ADP...")
-            df_ev = pd.read_csv(self.paths["eventos"], sep=';', encoding='latin1', engine='python', on_bad_lines='skip')
-            '''
-
             self.log("SUCESSO: Todos os arquivos foram lidos.")
             self.log("Iniciando o cruzamento de dados...")
-            
+
+            # ajusta os arquivos adp e sap em 1 só
             processamento()
 
-            prever_excel(
-                'dados/user/IA.xlsx',
-                sheet_name='Por_Conta'
-            )
+            #chama a ia
+            prever_excel("dados/user/IA.xlsx", sheet_name="Por_Conta")
+            prever_excel("dados/user/IA.xlsx", sheet_name="Por_CCusto")
 
-            prever_excel(
-                'dados/user/IA.xlsx',
-                sheet_name='Por_CCusto'
-            )
+            #cria o arquivo excel de output
+            output_excel()
+
             self.log("Análise concluída com sucesso.")
+            
+            self.btn_run.configure(
+                text="✔ EXECUÇÃO COMPLETA",
+                fg_color="#2e7d32",
+                hover_color="#1b5e20"
+            )
 
         except Exception as e:
             self.log(f"ERRO CRÍTICO: {str(e)}")
+
+            self.btn_run.configure(
+                text="❌ ERRO NA EXECUÇÃO",
+                fg_color="#c62828",
+                hover_color="#8e0000"
+            )
+
 
 if __name__ == "__main__":
     app = PayrollConciliator()

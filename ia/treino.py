@@ -44,12 +44,12 @@ print(pd.Series(y_treinamento_smote).value_counts())
 
 # Treinamento
 algoritmo = RandomForestClassifier(
-    min_samples_split=10,
+    min_samples_split=10, 
     min_samples_leaf=5,
     n_estimators=500,
     max_depth=20,
     max_features='log2',
-    class_weight='balanced',
+    class_weight='balanced', 
     random_state=42
 )
 

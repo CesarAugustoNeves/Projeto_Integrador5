@@ -8,7 +8,7 @@ arquivo_adp = BASE_DIR / "dados" / "user" / "ADP.xlsx"
 arquivo_sap = BASE_DIR / "dados" / "user" / "SAP.xlsx"
 arquivo_saida = BASE_DIR / "dados" / "user" / "IA.xlsx"
 
-
+#função que faz a classificação sem a ia para fins comparativos
 def diagnostico(row):
     diff = abs(row['diferenca'])
 

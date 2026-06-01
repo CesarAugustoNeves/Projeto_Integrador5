@@ -266,7 +266,7 @@ def processamento(
         .reset_index(drop=True)
     )
 
-    # ── Agrupamentos ──────────────────────────────────────────────────────────
+    # Agrupamentos
 
     colunas_soma = [
         'adp_debito', 'adp_credito',
@@ -306,7 +306,7 @@ def processamento(
         .reset_index(drop=True)
     )
 
-    # ── Salvar todas as abas ──────────────────────────────────────────────────
+    # Salvar todas as abas 
 
     with pd.ExcelWriter(arquivo_saida, engine='openpyxl') as writer:
         comparacao.to_excel(writer, sheet_name='Comparacao', index=False)
