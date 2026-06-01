@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 import openpyxl
 
-# ─── 1. BLINDAGEM DE CAMINHO PARA O .EXE ───
+# Caminho pro .exe 
 if getattr(sys, 'frozen', False):
     caminho_base = Path(sys._MEIPASS)
 else:
@@ -13,11 +13,10 @@ else:
 
 caminho_modelo = caminho_base / "ia" / "modelo.pkl"
 
-# ─── 2. CARREGANDO O CÉREBRO DA IA ───
+# Carregando a IA
 with open(caminho_modelo, 'rb') as arquivo:
     modelo = pickle.load(arquivo)
 
-# ─── 3. FUNÇÃO PRINCIPAL DE PREVISÃO ───
 def prever_excel(arquivo_ia, sheet_name=None, **kwargs):
     abas_para_processar = [sheet_name] if sheet_name is not None else ["Por_Conta", "Por_CCusto", "Por_Evento"]
 
@@ -30,7 +29,6 @@ def prever_excel(arquivo_ia, sheet_name=None, **kwargs):
         if df.empty:
             continue
 
-        # ── O FILTRO INFALÍVEL (As exatas 7 colunas na ordem do treino) ──
         colunas_treino = [
             'adp_debito', 'adp_credito', 
             'sap_debito', 'sap_credito', 
@@ -45,16 +43,15 @@ def prever_excel(arquivo_ia, sheet_name=None, **kwargs):
         # Separa exatamente as 7 colunas esperadas pela IA
         X = df[colunas_treino].fillna(0)
 
-        # 1. Executa a previsão da IA (A IA roda nos bastidores!)
+        # Executa a previsão da IA 
         previsoes = modelo.predict(X)
 
-        # 2. ── REGRA DE NEGÓCIO DA COLEGA (Idêntica ao teste.py) ──
+        # Regra de Negocio
         df['Previsao_Final'] = previsoes
         
         for index, row in df.iterrows():
             diff = abs(row['diferenca']) if pd.notna(row['diferenca']) else 0
             
-            # Aqui estão as regras EXATAS que ela escreveu no teste.py!
             if diff < 0.01:
                 df.at[index, 'Previsao_Final'] = '1 - OK! '
             else:
@@ -70,7 +67,7 @@ def prever_excel(arquivo_ia, sheet_name=None, **kwargs):
                     
         previsoes_atualizadas = df['Previsao_Final'].tolist()
 
-        # ── GRAVAÇÃO CIRÚRGICA ──
+        # Gravação
         wb = openpyxl.load_workbook(arquivo_ia)
         if aba in wb.sheetnames:
             ws = wb[aba]

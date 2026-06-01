@@ -5,7 +5,7 @@ import sys
 from openpyxl import load_workbook
 
 def output_excel():
-    # 1. A FUNÇÃO DE RADAR (Descobre onde o código está rodando)
+    # Descobre onde o código está rodando)
     if getattr(sys, 'frozen', False):
         # Rodando como .exe
         caminho_base = Path(sys._MEIPASS) # Pasta invisível do sistema
@@ -15,30 +15,27 @@ def output_excel():
         caminho_base = Path(__file__).resolve().parent.parent
         pasta_raiz = caminho_base
 
-    # 2. ARQUIVOS DE SISTEMA (Que viajam dentro do .exe)
+    # ARQUIVOS DE SISTEMA (Que viajam dentro do .exe)
     template_path = caminho_base / "dados" / "output" / "Resultado.xlsx"
 
-    # 3. ARQUIVOS DINÂMICOS (Criados soltos ao lado do .exe)
+    # Arquivos Criados soltos ao lado do .exe
     arquivo_ia = pasta_raiz / "IA.xlsx"
     arquivo_saida = pasta_raiz / "Resultado_Auditoria_IA.xlsx"
     
-    # 4. ARQUIVOS DO USUÁRIO (Lidos da pasta dados/user real do computador)
+    # ARQUIVOS DO USUÁRIO (Lidos da pasta dados/user real do computador)
     pasta_user = pasta_raiz / "dados" / "user"
     arquivo_plano = pasta_user / "PLANO_CONTAS.xlsx"
     arquivo_depara = pasta_user / "DEPARA.xlsx"
     arquivo_map_eventos = pasta_user / "EVENTOS.xlsx"
 
-    # 5. COPIA O TEMPLATE EM BRANCO PARA O ARQUIVO FINAL
+    # COPIA O TEMPLATE EM BRANCO PARA O ARQUIVO FINAL
     shutil.copy2(template_path, arquivo_saida)
 
-    # 6. LÊ OS DADOS GERADOS PELA IA (O arquivo intermediário)
     por_conta  = pd.read_excel(arquivo_ia, sheet_name="Por_Conta")
     por_ccusto = pd.read_excel(arquivo_ia, sheet_name="Por_CCusto")
     por_evento = pd.read_excel(arquivo_ia, sheet_name="Por_Evento")
-
-    # 7. MAPEAMENTOS BLINDADOS (Trazendo as descrições)
-    
-    # -- Mapa de Eventos --
+  
+    # Mapa de Eventos 
     if arquivo_map_eventos.exists():
         try:
             map_eventos = pd.read_excel(arquivo_map_eventos, sheet_name="Evento ADP")
@@ -54,7 +51,7 @@ def output_excel():
     else:
         por_evento['descricao'] = ""
 
-    # -- Mapa do Plano de Contas --
+    # Mapa do Plano de Contas 
     try:
         df_plano = pd.read_excel(arquivo_plano)
         # Força tudo para maiúsculo e tira espaços
@@ -72,7 +69,7 @@ def output_excel():
         if 'descricao' not in por_conta.columns:
             por_conta['descricao'] = ""
 
-    # -- Mapa de Centros de Custo (DePara) --
+    # Mapa de Centros de Custo (DePara) 
     try:
         df_depara = pd.read_excel(arquivo_depara)
         # Força tudo para maiúsculo e tira espaços
@@ -90,7 +87,6 @@ def output_excel():
         if 'descricao' not in por_ccusto.columns:
             por_ccusto['descricao'] = ""
 
-    # 8. ESCRITA SEGURA NO EXCEL
     wb = load_workbook(arquivo_saida)
 
     # Preenche aba: Por Evento

@@ -3,7 +3,7 @@ import numpy as np
 import sys
 from pathlib import Path
 
-# ─── 1. ONDE O SISTEMA ESTÁ RODANDO? ───
+# ONDE O SISTEMA ESTÁ RODANDO?
 if getattr(sys, 'frozen', False):
     # Rodando como .exe: Lê os arquivos da mesma pasta onde o executável está salvo
     pasta_trabalho = Path.cwd()
@@ -11,12 +11,11 @@ else:
     # Rodando no VS Code
     pasta_trabalho = Path(__file__).resolve().parent.parent
 
-# ─── 2. CAMINHOS DOS ARQUIVOS DO USUÁRIO ───
 # O sistema vai procurar a pasta "dados" ao lado de onde ele está rodando
 arquivo_adp = pasta_trabalho / "dados" / "user" / "ADP.xlsx"
 arquivo_sap = pasta_trabalho / "dados" / "user" / "SAP.xlsx"
 
-# O rascunho da IA será salvo solto, na mesma pasta do .exe
+# O rascunho da IA é salvo solto, na mesma pasta do .exe
 arquivo_saida = pasta_trabalho / "IA.xlsx"
 
 def processamento(
@@ -264,8 +263,7 @@ def processamento(
         .reset_index(drop=True)
     )
 
-    # Agrupamentos
-    # ── FUNÇÃO DE DIAGNÓSTICO RESTAURADA ──────────────────────────────────────
+    # Agrupamentos 
     def diagnostico(row):
         diff = abs(row.get('diferenca', 0))
         if diff < 0.01:
@@ -283,9 +281,6 @@ def processamento(
         return 1
 
     comparacao['diagnostico'] = comparacao.apply(diagnostico, axis=1)
-    # ──────────────────────────────────────────────────────────────────────────
-
-    # ── Agrupamentos ──────────────────────────────────────────────────────────
 
     colunas_soma = [
         'adp_debito', 'adp_credito',
@@ -313,28 +308,28 @@ def processamento(
         .reset_index(drop=True)
     )
 
-    # ── AGRUPAMENTO POR EVENTOS ───────────────────────────────────────────────
+    # AGRUPAMENTO POR EVENTOS
     
-    # 1. Extrair os códigos de evento (4 primeiros caracteres)
+    # Extrair os códigos de evento (4 primeiros caracteres)
     adp['evento'] = adp['Hist Lanc'].astype(str).str.strip().str[:4]
     
     sap_credito['evento'] = sap_credito['Texto'].astype(str).str.strip().str[:4]
     sap_debito['evento'] = sap_debito['Texto'].astype(str).str.strip().str[:4]
 
-    # 2. Somar Créditos e Débitos separados por evento
+    # Somar Créditos e Débitos separados por evento
     adp_credito_evt = adp.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'adp_credito'})
     sap_credito_evt = sap_credito.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'sap_credito'})
     
     adp_debito_evt = adp.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'adp_debito'})
     sap_debito_evt = sap_debito.groupby('evento', as_index=False)['valor'].sum().rename(columns={'valor': 'sap_debito'})
 
-    # 3. Consolidar todos os códigos de eventos existentes
+    # Consolidar todos os códigos de eventos existentes
     eventos_unicos = pd.concat([
         adp_credito_evt[['evento']], adp_debito_evt[['evento']],
         sap_credito_evt[['evento']], sap_debito_evt[['evento']]
     ]).drop_duplicates()
 
-    # 4. Mesclar as somas numa única tabela
+    # Mesclar as somas numa única tabela
     por_evento = (
         eventos_unicos
         .merge(adp_debito_evt, on='evento', how='left')
@@ -344,12 +339,12 @@ def processamento(
         .fillna(0)
     )
 
-    # 5. Calcular os saldos finais e a diferença
+    # Calcular os saldos finais e a diferença
     por_evento['adp_saldo'] = (por_evento['adp_debito'] - por_evento['adp_credito']).round(2)
     por_evento['sap_saldo'] = (por_evento['sap_debito'] - por_evento['sap_credito']).round(2)
     por_evento['diferenca'] = (por_evento['adp_saldo'] - por_evento['sap_saldo']).round(2)
     
-    # 6. Aplicar a mesma função de diagnóstico do resto
+    # Aplicar a mesma função de diagnóstico do resto
     por_evento['Previsão do Modelo'] = por_evento.apply(diagnostico, axis=1)
 
     # Por texto (hist_lanc_4 do ADP — 4 primeiros caracteres do histórico)

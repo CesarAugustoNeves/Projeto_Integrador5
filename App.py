@@ -4,8 +4,11 @@ from PIL import Image
 import pandas as pd
 import os
 import shutil
-
+#Comando pra ativar venv:
 #.\.venv\Scripts\activate
+
+#Comando pra ativar o executavel(dentro da venv): 
+#pyinstaller --noconsole --onefile --hidden-import customtkinter --collect-all customtkinter --hidden-import PIL --collect-all PIL --hidden-import sklearn --collect-all sklearn --hidden-import openpyxl --add-data "ia/modelo.pkl;ia" --add-data "dados/output/Resultado.xlsx;dados/output" App.py
 
 from utils.processamento_de_dados import processamento
 from ia.prever import prever_excel
