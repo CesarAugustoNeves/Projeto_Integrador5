@@ -17,42 +17,64 @@ caminho_modelo = caminho_base / "ia" / "modelo.pkl"
 with open(caminho_modelo, 'rb') as arquivo:
     modelo = pickle.load(arquivo)
 
-# ─── 3. FUNÇÃO PRINCIPAL DE PREVISÃO (ACEITANDO REQUISIÇÕES DO APP.PY) ───
+# ─── 3. FUNÇÃO PRINCIPAL DE PREVISÃO ───
 def prever_excel(arquivo_ia, sheet_name=None, **kwargs):
-    # Se o App.py passar uma aba específica, processa ela. Se não, processa as três.
     abas_para_processar = [sheet_name] if sheet_name is not None else ["Por_Conta", "Por_CCusto", "Por_Evento"]
 
     for aba in abas_para_processar:
         try:
-            # Lê os dados da aba atual
             df = pd.read_excel(arquivo_ia, sheet_name=aba)
         except Exception:
-            continue # Se a aba não existir no arquivo atual, pula para a próxima
+            continue 
             
         if df.empty:
             continue
 
-        # ── FILTRO DE PROTEÇÃO CONTRA TEXTOS/STRINGS ──
-        if hasattr(modelo, "feature_names_in_"):
-            colunas_validas = [col for col in modelo.feature_names_in_ if col in df.columns]
-            X = df[colunas_validas].fillna(0)
-        else:
-            # Fallback caso o modelo não tenha gravado as colunas: usa apenas números
-            X = df.select_dtypes(include=[np.number]).copy()
-            for col in ['conta', 'ccusto', 'evento']:
-                if col in X.columns:
-                    X = X.drop(columns=[col])
-            X = X.fillna(0)
+        # ── O FILTRO INFALÍVEL (As exatas 7 colunas na ordem do treino) ──
+        colunas_treino = [
+            'adp_debito', 'adp_credito', 
+            'sap_debito', 'sap_credito', 
+            'adp_saldo', 'sap_saldo', 'diferenca'
+        ]
+        
+        # Garante que todas existam; se faltar alguma, cria com 0
+        for col in colunas_treino:
+            if col not in df.columns:
+                df[col] = 0.0
 
-        # Executa a previsão da IA
+        # Separa exatamente as 7 colunas esperadas pela IA
+        X = df[colunas_treino].fillna(0)
+
+        # 1. Executa a previsão da IA (A IA roda nos bastidores!)
         previsoes = modelo.predict(X)
 
-        # ── GRAVAÇÃO CIRÚRGICA (Não apaga as outras abas do Excel) ──
+        # 2. ── REGRA DE NEGÓCIO DA COLEGA (Idêntica ao teste.py) ──
+        df['Previsao_Final'] = previsoes
+        
+        for index, row in df.iterrows():
+            diff = abs(row['diferenca']) if pd.notna(row['diferenca']) else 0
+            
+            # Aqui estão as regras EXATAS que ela escreveu no teste.py!
+            if diff < 0.01:
+                df.at[index, 'Previsao_Final'] = '1 - OK! '
+            else:
+                adp_tem = (pd.notna(row['adp_saldo']) and row['adp_saldo'] != 0)
+                sap_tem = (pd.notna(row['sap_saldo']) and row['sap_saldo'] != 0)
+                
+                if adp_tem and not sap_tem:
+                    df.at[index, 'Previsao_Final'] = '2 - Apenas ADP'
+                elif sap_tem and not adp_tem:
+                    df.at[index, 'Previsao_Final'] = '3 - Apenas SAP'
+                else:
+                    df.at[index, 'Previsao_Final'] = '4 - Diferença em ambos'
+                    
+        previsoes_atualizadas = df['Previsao_Final'].tolist()
+
+        # ── GRAVAÇÃO CIRÚRGICA ──
         wb = openpyxl.load_workbook(arquivo_ia)
         if aba in wb.sheetnames:
             ws = wb[aba]
             
-            # Procura se já existe a coluna de Previsão ou cria uma nova no final
             col_idx = None
             for col in range(1, ws.max_column + 1):
                 if ws.cell(row=1, column=col).value == 'Previsão do Modelo':
@@ -63,11 +85,10 @@ def prever_excel(arquivo_ia, sheet_name=None, **kwargs):
                 col_idx = ws.max_column + 1
                 ws.cell(row=1, column=col_idx).value = 'Previsão do Modelo'
             
-            # Preenche as linhas da planilha com os resultados da IA (Linha 1 é o cabeçalho)
-            for i, pred in enumerate(previsoes, start=2):
+            for i, pred in enumerate(previsoes_atualizadas, start=2):
                 ws.cell(row=i, column=col_idx).value = pred
                 
             wb.save(arquivo_ia)
-            wb.close()
+        wb.close()
 
     print(f"Previsões aplicadas com sucesso para: {abas_para_processar}")

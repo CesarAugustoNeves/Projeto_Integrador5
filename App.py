@@ -256,8 +256,9 @@ class PayrollConciliator(ctk.CTk):
             processamento()
 
             #chama a ia
-            prever_excel("dados/user/IA.xlsx", sheet_name="Por_Conta")
-            prever_excel("dados/user/IA.xlsx", sheet_name="Por_CCusto")
+            prever_excel("IA.xlsx", sheet_name="Por_Conta")
+            prever_excel("IA.xlsx", sheet_name="Por_CCusto")
+            prever_excel("IA.xlsx", sheet_name="Por_Evento") 
 
             #cria o arquivo excel de output
             output_excel()
