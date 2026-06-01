@@ -44,11 +44,11 @@ print(pd.Series(y_treinamento_smote).value_counts())
 
 # Treinamento
 algoritmo = RandomForestClassifier(
-    min_samples_split=10, 
-    min_samples_leaf=5,
-    n_estimators=500,
-    max_depth=20,
-    max_features='log2',
+    min_samples_split=10, # evita decições com poucos exemplos
+    min_samples_leaf=5, # cada folha terá 5 exemplos -> generalização _. evita que o modelo decore
+    n_estimators=500, # gera 500 arvores para aumentar a estabilidade (padrão é 100)
+    max_depth=20, # profundidade maxima em 20 para evitar underfitting (modelo simples demais pra aprender) e overfitting ("decora" ao inves de aprender)
+    max_features='log2', # encontra o ponto de corte com mais generalização 
     class_weight='balanced', 
     random_state=42
 )
