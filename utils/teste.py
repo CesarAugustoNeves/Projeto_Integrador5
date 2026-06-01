@@ -9,6 +9,24 @@ arquivo_sap = BASE_DIR / "dados" / "user" / "SAP.xlsx"
 arquivo_saida = BASE_DIR / "dados" / "user" / "IA.xlsx"
 
 
+def diagnostico(row):
+    diff = abs(row['diferenca'])
+
+    if diff < 0.01:
+        return '1 - OK! '
+
+    adp_tem = row['adp_saldo'] != 0
+    sap_tem = row['sap_saldo'] != 0
+
+    if adp_tem and not sap_tem:
+        return '2 - Apenas ADP'
+
+    if sap_tem and not adp_tem:
+        return '3 - Apenas SAP'
+
+    return '4 - Diferença em ambos'
+
+
 def processamento(
     arquivo_adp=arquivo_adp,
     arquivo_sap=arquivo_sap,
@@ -284,6 +302,8 @@ def processamento(
         .reset_index(drop=True)
     )
 
+    por_conta['Previsão do Modelo'] = por_conta.apply(diagnostico, axis=1)
+
     # Por centro de custo
     por_ccusto = (
         comparacao
@@ -294,8 +314,9 @@ def processamento(
         .reset_index(drop=True)
     )
 
+    por_ccusto['Previsão do Modelo'] = por_ccusto.apply(diagnostico, axis=1)
+
     # Por texto (hist_lanc_4 do ADP — 4 primeiros caracteres do histórico)
-    # Linhas sem texto ficam agrupadas como '' (em branco)
     por_texto = (
         comparacao
         .groupby('hist_lanc_4', as_index=False)[colunas_soma]
@@ -319,3 +340,5 @@ def processamento(
           f'Por_Conta ({len(por_conta)}) | '
           f'Por_CCusto ({len(por_ccusto)}) | '
           f'Por_Texto ({len(por_texto)})')
+    
+processamento()
